@@ -2,19 +2,40 @@
 
 ## Quick Reference
 
-**Container image:** `registry.lector.dev/lector` (or `ghcr.io/heuwels/lector` to opt out of install statistics — identical image)
+**Container image:** `ghcr.io/nguyenthanhhungdev140503/lector` for this repository.
 **UI port:** 3400
 **API:** published on 3457. Set `API_URL` to the origin that the browser uses for the API, for example `http://<host>:3457`. The browser calls the Hono API directly. There is no Next.js proxy. The API must be reachable from the browser.
 
-### Deploy
+### Manual deploy
 
 ```bash
-cd ~/lector
+cd /opt/lector
 docker compose pull
 docker compose up -d
 ```
 
-### Files on server (`~/lector/`)
+The production Compose file uses `LECTOR_VERSION` to select an image tag. It
+does not build on the VPS.
+
+## GitHub Actions deploy
+
+The `Build and Push VPS Image` workflow publishes `sha-<commit>` and `latest`
+tags to GHCR. After a successful build, `Deploy to VPS` copies the production
+Compose file, pulls the immutable commit tag, and waits for the container
+healthcheck. A failed healthcheck restores the previous tag.
+
+Set these repository secrets:
+
+- `VPS_HOST`: VPS hostname or IP
+- `VPS_USER`: SSH user
+- `VPS_SSH_PORT`: SSH port, usually `22`
+- `VPS_SSH_KEY`: private key matching the VPS `authorized_keys`
+- `VPS_DEPLOY_PATH`: deploy directory, for example `/opt/lector`
+
+The workflow uses its short-lived GitHub Actions token to authenticate the VPS
+to GHCR; no long-lived registry token is required.
+
+## Files on server (`/opt/lector/`)
 
 - `docker-compose.yml`: copy from `deploy/docker-compose.yml`
 - `.env`: copy from `deploy/.env.example`
@@ -23,17 +44,21 @@ docker compose up -d
 
 Compose injects environment variables at runtime. The image contains no secrets.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Optional | Enables AI translation for uncommon words |
-| `LECTOR_VERSION` | No | Image tag (default: `latest`). A pinned version carries no `v` prefix. Write `3.10.0`, not `v3.10.0`. The git tag keeps the prefix. The image tag drops it. |
-| `WEB_PORT` | No | Host port for the UI (default: `3400`) |
-| `API_URL` | **Remote** | Browser-facing API origin, for example `http://<host>:3457`. The API is published on host port 3457. The web app calls Hono directly, so the browser must reach it. Default `http://localhost:3457` is correct only on the host. |
-| `DATA_PATH` | No | Persistent data directory (default: `./data`) |
+| Variable            | Required   | Description                                                                                                                                                                                                                      |
+| ------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | Optional   | Enables AI translation for uncommon words                                                                                                                                                                                        |
+| `LECTOR_VERSION`    | No         | Image tag (default: `latest`). A pinned version carries no `v` prefix. Write `3.10.0`, not `v3.10.0`. The git tag keeps the prefix. The image tag drops it.                                                                      |
+| `WEB_PORT`          | No         | Host port for the UI (default: `3400`)                                                                                                                                                                                           |
+| `API_URL`           | **Remote** | Browser-facing API origin, for example `http://<host>:3457`. The API is published on host port 3457. The web app calls Hono directly, so the browser must reach it. Default `http://localhost:3457` is correct only on the host. |
+| `DATA_PATH`         | No         | Persistent data directory (default: `./data`)                                                                                                                                                                                    |
 
 Root `docker-compose.yml` is the local path. This `deploy/docker-compose.yml` is the server path. Both pull `registry.lector.dev/lector`, which counts pulls so we have a rough idea how many installs exist. No IP address is stored — see the [privacy policy](https://lector.dev/privacy/).
 
-Both files also carry `ghcr.io/heuwels/lector` as a commented-out line. Swap which line is active to pull the identical image without being counted; nothing else about the install changes.
+The Lector service is configured for `lazy-tcp-proxy`: it has no host port
+bindings, exposes ports 3000 and 3457 internally, and uses proxy labels for
+host ports 3400 and 3457. The existing `/opt/lazy-proxy` installation must be
+running. Ollama remains `restart: unless-stopped` because it is an internal
+dependency and is not exposed through the lazy proxy.
 
 For cloud mode, Anki, backups, and adoption of self-host data, see the root [README.md](../README.md).
 

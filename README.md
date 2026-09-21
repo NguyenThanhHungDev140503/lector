@@ -21,13 +21,13 @@ Optional local models run through the bundled Ollama service.
 
 Optional cloud models cover rare words and the tutor.
 
-| App | Host | Database | Anki |
-| --- | --- | --- | --- |
-| **Lector** | Lector Cloud, or one Compose file | SQLite | Two-way (beta) |
-| [LingQ](https://lector.dev/vs/lingq/) | Hosted only | Cloud | File export |
-| [Clozemaster](https://lector.dev/vs/clozemaster/) | Hosted only | Cloud | No documented export |
-| [Lute](https://lector.dev/vs/lute/) | pip, Docker, or source | Local files | One-way AnkiConnect |
-| [LinguaCafe](https://lector.dev/vs/linguacafe/) | Four Compose services | MySQL | One-way AnkiConnect |
+| App                                               | Host                              | Database    | Anki                 |
+| ------------------------------------------------- | --------------------------------- | ----------- | -------------------- |
+| **Lector**                                        | Lector Cloud, or one Compose file | SQLite      | Two-way (beta)       |
+| [LingQ](https://lector.dev/vs/lingq/)             | Hosted only                       | Cloud       | File export          |
+| [Clozemaster](https://lector.dev/vs/clozemaster/) | Hosted only                       | Cloud       | No documented export |
+| [Lute](https://lector.dev/vs/lute/)               | pip, Docker, or source            | Local files | One-way AnkiConnect  |
+| [LinguaCafe](https://lector.dev/vs/linguacafe/)   | Four Compose services             | MySQL       | One-way AnkiConnect  |
 
 Full pages live at [lector.dev/vs](https://lector.dev/vs/).
 
@@ -63,6 +63,19 @@ Compose files carry it as a commented-out line.
 
 A production Compose file with health checks lives in [`deploy/`](deploy/). Full
 environment notes live in [`deploy/README.md`](deploy/README.md).
+
+### Automated VPS deployment
+
+This repository includes GitHub Actions workflows for building a
+multi-architecture image in GHCR and deploying an immutable commit tag to a
+VPS. The deployment preserves the SQLite data and dictionary volumes and
+rolls back when the health check fails. With `lazy-tcp-proxy`, Lector wakes on
+traffic and stops after ten minutes without connections; Ollama remains
+available for local-model requests.
+
+Configure `VPS_HOST`, `VPS_USER`, `VPS_SSH_PORT`, `VPS_SSH_KEY`, and
+`VPS_DEPLOY_PATH` as repository secrets, then merge to `master`. See
+[`deploy/README.md`](deploy/README.md) for server setup details.
 
 If you do not want to run a server, use the hosted app at [app.lector.dev](https://app.lector.dev). Paid plans start at $5 per month.
 
@@ -145,18 +158,18 @@ Two transports exist. Open Settings, then Anki Integration, then Connection.
 
 If you want a file, copy `.env.example` to `.env`. Compose also reads the process environment.
 
-| Variable | Purpose |
-| --- | --- |
-| `ANTHROPIC_API_KEY` | Cloud translation and tutor. Optional. The local dictionary covers common words. |
-| `API_URL` | Browser-facing API origin. Required when the browser is not on the server. |
-| `LECTOR_MODE` | `selfhost` (default, one user, no login) or `cloud` (accounts). |
-| `LLM_PROVIDER` | `anthropic` (default) or an OpenAI-compatible backend. |
-| `OPENAI_COMPAT_URL` | Local model endpoint. The bundled Ollama service is `http://ollama:11434`. |
-| `CLASSIFY_WORKER` | Set to `1` to fill the fluency radar. Compose sets this for you. |
-| `DICT_LANGS` | Dictionaries to download at start. Use `all` for every language. Unset downloads only what you add in the picker. |
-| `DICT_FETCH` | Set to `0` to never download a dictionary. Use it with the `:full` image. |
-| `DICT_DIR` | Where the dictionaries live. The default is the `lector-dict` volume. |
-| `TRANSCRIBE_WORKER` | Set to `1` to transcribe podcast uploads. Needs a Whisper endpoint. See [`deploy/README.md`](deploy/README.md). |
+| Variable            | Purpose                                                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | Cloud translation and tutor. Optional. The local dictionary covers common words.                                  |
+| `API_URL`           | Browser-facing API origin. Required when the browser is not on the server.                                        |
+| `LECTOR_MODE`       | `selfhost` (default, one user, no login) or `cloud` (accounts).                                                   |
+| `LLM_PROVIDER`      | `anthropic` (default) or an OpenAI-compatible backend.                                                            |
+| `OPENAI_COMPAT_URL` | Local model endpoint. The bundled Ollama service is `http://ollama:11434`.                                        |
+| `CLASSIFY_WORKER`   | Set to `1` to fill the fluency radar. Compose sets this for you.                                                  |
+| `DICT_LANGS`        | Dictionaries to download at start. Use `all` for every language. Unset downloads only what you add in the picker. |
+| `DICT_FETCH`        | Set to `0` to never download a dictionary. Use it with the `:full` image.                                         |
+| `DICT_DIR`          | Where the dictionaries live. The default is the `lector-dict` volume.                                             |
+| `TRANSCRIBE_WORKER` | Set to `1` to transcribe podcast uploads. Needs a Whisper endpoint. See [`deploy/README.md`](deploy/README.md).   |
 
 The app runs with no API keys. Claude is only required for rare words, phrase translation, and the tutor.
 

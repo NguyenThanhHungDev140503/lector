@@ -1,0 +1,113 @@
+name: Deploy to VPS
+
+on:
+  workflow_run:
+    workflows: [Build and Push VPS Image]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Image tag to deploy, for example sha-<commit> or latest
+        required: false
+        default: latest
+
+concurrency:
+  group: vps-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'master')
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_VERSION: ${{ github.event_name == 'workflow_run' && format('sha-{0}', github.event.workflow_run.head_sha) || inputs.version }}
+      IMAGE: ghcr.io/nguyenthanhhungdev140503/lector
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Install SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/vps_key"
+          chmod 600 "$HOME/.ssh/vps_key"
+          ssh-keyscan -p '${{ secrets.VPS_SSH_PORT }}' -H '${{ secrets.VPS_HOST }}' >> "$HOME/.ssh/known_hosts"
+
+      - name: Authenticate VPS to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | ssh -i "$HOME/.ssh/vps_key" -p "$VPS_SSH_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            'docker login ghcr.io --username github-actions --password-stdin'
+
+      - name: Deploy with rollback and scale-to-zero labels
+        env:
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/vps_key" -p "$VPS_SSH_PORT" "$VPS_USER@$VPS_HOST" \
+            "mkdir -p '$VPS_DEPLOY_PATH'"
+          scp -i "$HOME/.ssh/vps_key" -P "$VPS_SSH_PORT" \
+            deploy/docker-compose.yml \
+            "$VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/docker-compose.yml"
+          ssh -i "$HOME/.ssh/vps_key" -p "$VPS_SSH_PORT" "$VPS_USER@$VPS_HOST" \
+            "DEPLOY_VERSION='$DEPLOY_VERSION' IMAGE='$IMAGE' DEPLOY_PATH='$VPS_DEPLOY_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          mkdir -p data
+          touch .env
+          previous="$(cat .lector-version 2>/dev/null || true)"
+          if [ -z "$previous" ]; then previous=latest; fi
+          printf '%s\n' "$DEPLOY_VERSION" > .lector-version.next
+          export LECTOR_IMAGE="$IMAGE"
+          export LECTOR_VERSION="$DEPLOY_VERSION"
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.yml pull lector
+          docker compose -f docker-compose.yml up -d --no-build --remove-orphans
+
+          healthy=false
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' lector 2>/dev/null || true)"
+            if [ "$status" = healthy ]; then
+              healthy=true
+              break
+            fi
+            if [ "$status" = unhealthy ] || [ "$(docker inspect --format '{{.State.Status}}' lector 2>/dev/null || true)" = exited ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "$healthy" != true ]; then
+            echo 'New Lector container failed its healthcheck; rolling back.' >&2
+            docker logs --tail 120 lector >&2 || true
+            export LECTOR_VERSION="$previous"
+            docker compose -f docker-compose.yml pull lector
+            docker compose -f docker-compose.yml up -d --no-build --remove-orphans
+            rm -f .lector-version.next
+            exit 1
+          fi
+
+          mv .lector-version.next .lector-version
+          docker image prune -af --filter 'until=168h' || true
+          docker compose -f docker-compose.yml ps
+          REMOTE

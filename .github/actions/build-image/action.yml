@@ -7,34 +7,34 @@ inputs:
   push:
     description: Push tree (and optional PR) tags to ghcr
     required: false
-    default: 'false'
+    default: "false"
   load:
     description: Load the image into the local docker engine
     required: false
-    default: 'false'
+    default: "false"
   local_tag:
     description: Extra local tag when load is true, or after a push
     required: false
-    default: ''
+    default: ""
   pr_number:
-    description: If set, also tag ghcr.io/heuwels/lector:pr-<n>-<arch>
+    description: If set, also tag the repository image as pr-<n>-<arch>
     required: false
-    default: ''
+    default: ""
   git_commit:
     description: GIT_COMMIT build-arg. Defaults to HEAD.
     required: false
-    default: ''
+    default: ""
   image_tag:
     description: >
       Tag base, which the action suffixes with the arch. Defaults to
       `tree-<tree>`. A release passes its own base so the build runs again at
       the tag, because the tree tag already holds the master build.
     required: false
-    default: ''
+    default: ""
   write_registry_cache:
     description: Also write the registry BuildKit cache
     required: false
-    default: 'false'
+    default: "false"
   bake_dicts:
     description: >
       BAKE_DICTS build-arg (#438). Empty builds the slim image, which ships no
@@ -42,7 +42,7 @@ inputs:
       tag. Pass image_tag with this, or the baked image overwrites the slim
       image under the same tag.
     required: false
-    default: ''
+    default: ""
 outputs:
   tree:
     description: Git tree SHA of HEAD
@@ -67,7 +67,7 @@ runs:
         set -euo pipefail
         tree=$(git rev-parse 'HEAD^{tree}')
         arch="${PLATFORM#linux/}"
-        repo="ghcr.io/heuwels/lector"
+        repo="ghcr.io/${GITHUB_REPOSITORY,,}"
         # A release passes its own base. The reuse check below then inspects
         # that tag rather than the tree tag, so the build runs again and stamps
         # the release version into the bundle.
@@ -138,8 +138,8 @@ runs:
           BAKE_DICTS=${{ inputs.bake_dicts }}
         cache-from: |
           type=gha,scope=lector-${{ steps.meta.outputs.arch }}
-          type=registry,ref=ghcr.io/heuwels/lector:buildcache-${{ steps.meta.outputs.arch }}
-          type=registry,ref=ghcr.io/heuwels/lector:master
+          type=registry,ref=ghcr.io/nguyenthanhhungdev140503/lector:buildcache-${{ steps.meta.outputs.arch }}
+          type=registry,ref=ghcr.io/nguyenthanhhungdev140503/lector:master
         cache-to: type=gha,scope=lector-${{ steps.meta.outputs.arch }},mode=max,ignore-error=true
 
     - name: Build production image with registry cache
@@ -159,10 +159,10 @@ runs:
         cache-from: |
           type=gha,scope=lector-${{ steps.meta.outputs.arch }}
           type=registry,ref=ghcr.io/heuwels/lector:buildcache-${{ steps.meta.outputs.arch }}
-          type=registry,ref=ghcr.io/heuwels/lector:master
+          type=registry,ref=ghcr.io/nguyenthanhhungdev140503/lector:master
         cache-to: |
           type=gha,scope=lector-${{ steps.meta.outputs.arch }},mode=max,ignore-error=true
-          type=registry,ref=ghcr.io/heuwels/lector:buildcache-${{ steps.meta.outputs.arch }},mode=max,ignore-error=true
+          type=registry,ref=ghcr.io/nguyenthanhhungdev140503/lector:buildcache-${{ steps.meta.outputs.arch }},mode=max,ignore-error=true
 
     - name: Pull image for local use
       if: ${{ inputs.local_tag != '' && inputs.push == 'true' }}
