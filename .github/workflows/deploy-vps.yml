@@ -76,14 +76,6 @@ jobs:
           cd "$DEPLOY_PATH"
           mkdir -p data
           chown -R 1001:1001 data
-          touch .env
-          if [ -n "$API_URL" ]; then
-            if grep -q '^API_URL=' .env; then
-              sed -i "s#^API_URL=.*#API_URL=$API_URL#" .env
-            else
-              printf 'API_URL=%s\n' "$API_URL" >> .env
-            fi
-          fi
           previous="$(cat .lector-version 2>/dev/null || true)"
           if [ -z "$previous" ]; then previous=latest; fi
           printf '%s\n' "$DEPLOY_VERSION" > .lector-version.next

@@ -39,7 +39,8 @@ to GHCR; no long-lived registry token is required.
 ## Files on server (`/opt/lector/`)
 
 - `docker-compose.yml`: copy from `deploy/docker-compose.yml`
-- `.env`: copy from `deploy/.env.example`
+- `.env`: optional local runtime overrides; GitHub Actions injects `VPS_API_URL`
+  directly for automated deploys
 
 ### Environment Variables
 
