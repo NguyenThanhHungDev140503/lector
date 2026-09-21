@@ -62,6 +62,7 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
           VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+          VPS_API_URL: ${{ secrets.VPS_API_URL }}
         run: |
           set -euo pipefail
           ssh -i "$HOME/.ssh/vps_key" -p "$VPS_SSH_PORT" "$VPS_USER@$VPS_HOST" \
@@ -70,12 +71,15 @@ jobs:
             deploy/docker-compose.yml \
             "$VPS_USER@$VPS_HOST:$VPS_DEPLOY_PATH/docker-compose.yml"
           ssh -i "$HOME/.ssh/vps_key" -p "$VPS_SSH_PORT" "$VPS_USER@$VPS_HOST" \
-            "DEPLOY_VERSION='$DEPLOY_VERSION' IMAGE='$IMAGE' DEPLOY_PATH='$VPS_DEPLOY_PATH' bash -s" <<'REMOTE'
+            "DEPLOY_VERSION='$DEPLOY_VERSION' IMAGE='$IMAGE' DEPLOY_PATH='$VPS_DEPLOY_PATH' API_URL='$VPS_API_URL' bash -s" <<'REMOTE'
           set -euo pipefail
           cd "$DEPLOY_PATH"
           mkdir -p data
           chown -R 1001:1001 data
           touch .env
+          if [ -n "$API_URL" ] && ! grep -q '^API_URL=' .env; then
+            printf 'API_URL=%s\n' "$API_URL" >> .env
+          fi
           previous="$(cat .lector-version 2>/dev/null || true)"
           if [ -z "$previous" ]; then previous=latest; fi
           printf '%s\n' "$DEPLOY_VERSION" > .lector-version.next

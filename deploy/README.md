@@ -31,6 +31,7 @@ Set these repository secrets:
 - `VPS_SSH_PORT`: SSH port, usually `22`
 - `VPS_SSH_KEY`: private key matching the VPS `authorized_keys`
 - `VPS_DEPLOY_PATH`: deploy directory, for example `/opt/lector`
+- `VPS_API_URL`: browser-facing API URL, for example `http://<vps-ip>:3457`
 
 The workflow uses its short-lived GitHub Actions token to authenticate the VPS
 to GHCR; no long-lived registry token is required.
