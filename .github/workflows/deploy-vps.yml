@@ -74,6 +74,7 @@ jobs:
           set -euo pipefail
           cd "$DEPLOY_PATH"
           mkdir -p data
+          chown -R 1001:1001 data
           touch .env
           previous="$(cat .lector-version 2>/dev/null || true)"
           if [ -z "$previous" ]; then previous=latest; fi
